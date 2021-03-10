@@ -39,16 +39,21 @@ def iter_sample_single_jsonl(root, language, partition, num_examples, random_see
             # random state.
             rand = random.Random(random_seed)
 
-            example_indices = rand.sample(range(total_examples), num_examples)
+            example_indices = sorted(rand.sample(range(total_examples),
+                                                 num_examples))
 
             for i in example_indices:
                 index_file.seek(i * 4, 0)
 
                 # Special case if i == 0: the seek position is implicitly
                 # 0 and stored in the index file.
-                seek_begin = i and int.from_bytes(index_file.read(4),
-                                                  byteorder='big',
-                                                  signed=False)
+                if i == 0:
+                    seek_begin = 0
+                    index_file.seek(4, 1)
+                else:
+                    seek_begin = int.from_bytes(index_file.read(4),
+                                                byteorder='big',
+                                                signed=False)
 
                 # The seek position of the next example, or the position of the
                 # current example not inclusive.
