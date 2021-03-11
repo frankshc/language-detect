@@ -66,8 +66,7 @@ def iter_sample_single_jsonl(root, language, partition, num_examples, random_see
                 jsonl.seek(seek_begin, 0)
                 num_bytes = seek_end - seek_begin
 
-                line = jsonl.read(num_bytes).decode('utf-8')
-                d = json.loads(line)
+                d = json.loads(jsonl.read(num_bytes))
                 d = {key: d[key] for key in ('language', 'repo', 'original_string')}
 
                 if excerpt:
