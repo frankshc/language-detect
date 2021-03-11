@@ -79,7 +79,7 @@ def iter_sample_single_jsonl(root, language, partition, num_examples, random_see
     return generator()
 
 
-def sample_partition(root, partition, num_examples, output_file, random_seed=None, excerpt=False):
+def sample_partition(root, partition, num_examples, output_file, random_seed=None, excerpt=False, shuffle=False):
     """Randomly samples and splits the master dataset.
 
     Given a partition {test, valid, train}, randomly sample the specified
@@ -97,11 +97,31 @@ def sample_partition(root, partition, num_examples, output_file, random_seed=Non
     """
     languages = sorted(('go', 'java', 'javascript', 'php', 'python', 'ruby'))
 
-    sampler = itertools.chain(*(iter_sample_single_jsonl(root, lang, partition,
-                                                         num_examples,
-                                                         random_seed,
-                                                         excerpt)
-                                for lang in languages))
+    samplers = [iter_sample_single_jsonl(root, lang, partition,
+                                         num_examples, random_seed,
+                                         excerpt)
+                for lang in languages]
+
+    if shuffle:
+
+        rand = random.Random(random_seed)
+
+        def sampler():
+            while samplers:
+                i = rand.randrange(len(samplers))
+                line = next(samplers[i], None)
+
+                if line is None:
+                    samplers[i], samplers[-1] = samplers[-1], samplers[i]
+                    samplers.pop()
+                    continue
+
+                yield line
+
+        sampler = sampler()
+
+    else:
+        sampler = itertools.chain.from_iterable(samplers)
 
     output_file.writelines(line for line in sampler)
 
@@ -113,12 +133,20 @@ if __name__ == '__main__':
                    'dataset for a given partition.')
 
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('jsonl_root', help='A directory that contains the extracted and indexed jsonl files.')
+    parser.add_argument('jsonl_root', help='A directory that contains the '
+                                           'extracted and indexed jsonl files.')
     parser.add_argument('partition', help='One of {train, test, valid}.')
-    parser.add_argument('num_examples', type=int, help='Number of examples to sample per language.')
+    parser.add_argument('num_examples', type=int, help='Number of examples to '
+                                                       'sample per language.')
     parser.add_argument('output_path', help='The path of the output jsonl file.')
-    parser.add_argument('--random_seed', type=int, help='An integer random seed used for sampling.')
-    parser.add_argument('--excerpt', default=False, action='store_true')
+    parser.add_argument('--random_seed', type=int, help='An integer random seed '
+                                                        'used for sampling.')
+    parser.add_argument('--excerpt', default=False, action='store_true',
+                        help='Flag that specifies whether the code text should '
+                             'be excerpted.')
+    parser.add_argument('--shuffle', default=False, action='store_true',
+                        help='Flag that when specified, shuffles the order of'
+                             'sampled json lines.')
 
     args = parser.parse_args()
 
@@ -130,4 +158,4 @@ if __name__ == '__main__':
 
     with open(args.output_path, 'w') as out:
         sample_partition(args.jsonl_root, args.partition, args.num_examples,
-                         out, args.random_seed, args.excerpt)
+                         out, args.random_seed, args.excerpt, args.shuffle)
